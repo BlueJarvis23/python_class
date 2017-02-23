@@ -1,0 +1,16 @@
+Lecture 3
+    Scope
+    Functions
+    Builtin functions
+
+Lecture 4
+    Member functions/....classes....
+
+Lecture 5
+    Executing external Scripts/Commands
+    List Comprehension/Ranges
+    Terenary Operator
+    Modules
+
+Lecture Last
+    Classes -- not so much

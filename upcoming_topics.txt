@@ -11,6 +11,4 @@ Lecture 5
     List Comprehension/Ranges
     Terenary Operator
     Modules
-
-Lecture Last
-    Classes -- not so much
+    files.....

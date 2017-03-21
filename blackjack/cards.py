@@ -48,6 +48,10 @@ class Hand:
         self.cards = list(args)
         self.update_counts()
         self.is_bust()
+    def __str__(self):
+        return "{cards}".format(**self.__dict__)
+    def __repr__(self):
+        return "{__class__.__name__}(cards={cards!r})".format(__class__=self.__class__, **self.__dict__)
     def add_card(self, card):
         if not isinstance(card, Card):
             raise Exception( "Only Cards may be added to a Hand" )
@@ -58,43 +62,119 @@ class Hand:
         self.hard_count = sum(c.hard for c in self.cards)
         self.soft_count = sum(c.soft for c in self.cards)
     def is_bust(self):
-        self.bust = False if self.soft_count > 21 else True
+        self.bust = True if self.soft_count > 21 else False
+        return self.bust
+    def split(self, split_num ):
+        pass
+
+class Deck(list):
+    def __init__(self, num_decks=1):
+        super().__init__(init_card(rank, suit) for rank in range(1,14) for suit in (Club, Diamond, Spade, Heart) for d in range(num_decks))
+        random.shuffle( self ) 
+    ## Possible Burn function here
 
 class Player:
     # Player has 1 or many hands
-    # Player has a strategy
-    pass
+    # Player has a gamestrategy
+    # Player has a bettingstrategy
+    # Player has a table
+    def __init__(self, table, bet_strategy, game_strategy, **kwargs):
+        self.table = table
+        self.bet_strategy = bet_strategy
+        self.game_strategy = game_strategy
+        self.hands = []
+        self.loss = 0
+        self.win = 0
+        self.__dict__.update( kwargs )
+    def play( self ):
+        self.table.place_bet( self.bet_strategy.bet() )
+        self.hands.append( self.table.get_hand() ) ## used later in splitting hands...
+        for hand in self.hands:
+            while self.game_strategy.hit(hand):
+                hand.add_card( self.table.get_card() )
 
-class Strategy:
-    pass
+        for hand in self.hands:
+            if hand.is_bust():
+                self.loss = self.loss + 1
+            else:
+                self.win = self.win + 1
+
+        print( self.hands[0].is_bust(), self.hands[0].hard_count, self.hands[0].soft_count, self.hands )
+                
+        ## etc....
+    def end_trick(self):
+        self.hands = []
+
+class GameStrategy:
+    def insurance( self, hand ):
+        return False
+    def split( self, hand ):
+        return False
+    def double( self, hand ):
+        return False
+    def hit( self, hand ):
+        return sum(c.hard for c in hand.cards) <= 17
+    ## Stand
+
+class BettingStrategy:
+    def bet( self ):
+        raise NotImplementedError( "No bet method" )
+    def record_win( self ):
+        pass
+    def record_loss( self ):
+        pass
+
+class Flat_Bet(BettingStrategy):
+    def bet(self):
+        return 1
 
 class Table:
+#    def __init__(self, num_decks=1):
+#        self.deck = Deck(num_decks)
+#        self.dealer = Player( self, bet_strategy, game_strategy )
     # Table has one Dealer
     # 1 or many Players
     # 1 Deck
-    pass
-
+    def __init__( self, dealer, num_decks=1 ):
+        self.num_decks = num_decks
+        self.deck = Deck(num_decks)
+    def place_bet( self, amount ):
+        print( "Bet", amount )
+    def get_hand(self):
+        try:
+            h = Hand(self.deck.pop(), self.deck.pop())
+            print( "Deal: %s" % (h,))
+            return h
+        except IndexError:
+            self.deck = Deck(self.num_decks)
+            return self.get_hand()
+    def get_card(self):
+        try:
+            c = self.deck.pop()
+            return c
+        except:
+            self.deck = Deck(self.num_decks)
+            return self.get_card()   
 
 Club, Diamond, Spade, Heart = Suit('Club', '\u2667'), Suit('Diamond', '\u25C6'), Suit('Spade', '\u2664'), Suit('Heart', '\u2665')
-deck = [init_card(rank, suit) for rank in range(1,14) for suit in (Club, Diamond, Spade, Heart)]
 
-random.shuffle(deck)
-
-for x in deck:
-    print(x)
-print(deck)
-
-print( Club, Diamond, Spade, Heart )
-
-print(', '.join(map(str,deck)))
-
-h1 = Hand(deck.pop(), deck.pop())
-h2 = Hand(deck.pop(), deck.pop())
-
-print( ', '.join(map(str, h1.cards)))
-print( ', '.join(map(str, h2.cards)))
-
-
+#deck = [init_card(rank, suit) for rank in range(1,14) for suit in (Club, Diamond, Spade, Heart)]
+#
+#random.shuffle(deck)
+#
+#for x in deck:
+#    print(x)
+#print(deck)
+#
+#print( Club, Diamond, Spade, Heart )
+#
+#print(', '.join(map(str,deck)))
+#
+#h1 = Hand(deck.pop(), deck.pop())
+#h2 = Hand(deck.pop(), deck.pop())
+#
+#print( ', '.join(map(str, h1.cards)))
+#print( ', '.join(map(str, h2.cards)))
 
 
 

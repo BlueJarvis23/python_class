@@ -8,7 +8,7 @@ class Cheater(GameStrategy):
             theoretical_hand = Hand( *hand.cards, self.player.table.deck[-1] )
             for x in range(25):
                 if theoretical_hand.is_bust():
-                    self.player.table.deck.pop()
+                    self.player.table.get_card()
                     theoretical_hand = Hand( *hand.cards, self.player.table.deck[-1] )
             if not theoretical_hand.is_bust():
                 return True

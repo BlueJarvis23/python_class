@@ -1,6 +1,7 @@
 #! /usr/local/bin/python3
 
 import random
+import copy
 
 class Suit:
     def __init__( self, name, symbol ):
@@ -48,7 +49,9 @@ class Hand:
         self.cards = list(args)
         self.update_counts()
         self.is_bust()
+        self.pot = 0
     def __str__(self):
+        return ' '.join(map(str, self.cards))
         return "{cards}".format(**self.__dict__)
     def __repr__(self):
         return "{__class__.__name__}(cards={cards!r})".format(__class__=self.__class__, **self.__dict__)
@@ -69,10 +72,20 @@ class Hand:
         elif self.soft_count <= 21 and self.hard_count <= 21:
             return max( self.soft_count, self.hard_count )
     def is_bust(self):
-        self.bust = True if self.hard_count > 21 else False
-        return self.bust
-    def split(self, split_num ):
-        pass
+        return True if self.hard_count > 21 else False
+    def split_hand(self):
+        extra_card = self.cards.pop()
+        return Hand(extra_card)
+    def splitable(self):
+        if len(self.cards) == 2 and len(set(map(lambda x: x.rank, self.cards))) == 1:
+            return True
+        return False
+    def double_downable(self):
+        if len(self.cards) == 2: 
+            return True
+        return False
+    def place_bet( self, amount ):
+        self.pot = self.pot + (amount*2) # Dealer just matches bet
 
 class Deck(list):
     def __init__(self, num_decks=1):
@@ -81,80 +94,97 @@ class Deck(list):
     ## Possible Burn function here
 
 class Player:
-    # Player has 1 or many hands
-    # Player has a gamestrategy
-    # Player has a bettingstrategy
-    # Player has a table
     def __init__(self, table, bet_strategy, game_strategy, **kwargs):
         self.table = table
-        self.bet_strategy = bet_strategy
-        self.game_strategy = game_strategy
+        self.bet_strategy = bet_strategy(self)
+        self.game_strategy = game_strategy(self)
         self.hands = []
         self.loss = 0
         self.win = 0
         self.pool = 100
+        self.last_bet = 0
         self.__dict__.update( kwargs )
+    def __str__(self):
+        return ' -- '.join(map(str, self.hands))
+        return "{hands}".format(**self.__dict__)
+    def __repr__(self):
+        return "{__class__.__name__}(hands={hands!r})".format(__class__=self.__class__, **self.__dict__)
     def play( self ):
-        self.pool = self.pool - self.bet_strategy.bet()
         if not self.hands: # is Dealer
-            self.table.place_bet( self.bet_strategy.bet() )
             self.hands.append( self.table.get_hand() ) ## used later in splitting hands...
+            self.hands[0].place_bet( self.place_bet( self.bet_strategy.bet() ))
+
+# Double Down
+        for hand in self.hands:
+            if self.game_strategy.DD(hand):
+                hand.place_bet( self.place_bet( self.last_bet ) )
+                hand.add_card( self.table.get_card() )
+                print("\t\tDouble Down")
+# Split
+        for hand in self.hands:
+            if self.game_strategy.SPLT(hand):
+                hand.place_bet( self.place_bet( self.last_bet ) )
+                self.hands.append( hand.split_hand() )
+                print("\t\tSplit")
+# Hit
         for hand in self.hands:
             while self.game_strategy.hit(hand):
                 hand.add_card( self.table.get_card() )
+
     def end_trick(self):
         self.hands = []
     def add_pool(self, amount):
         self.pool = self.pool + amount
+    def place_bet(self, amount):
+        self.last_bet = amount
+        self.pool = self.pool - amount
+        return amount
 
 class GameStrategy:
-    def insurance( self, hand ):
+    def __init__(self, player):
+        self.player = player
+    def DD( self, hand ):
+        if hand.double_downable():
+            return self.double_down( hand )
         return False
+    def SPLT( self, hand ):
+        if hand.splitable():
+            return self.split( hand )
+        return False
+
+## Only Over Ride These ##
+    def double_down( self, hand ):
+        return False 
     def split( self, hand ):
-        return False
-    def double( self, hand ):
-        return False
+        return False 
     def hit( self, hand ):
         return sum(c.hard for c in hand.cards) <= 17
+## Only Over Ride These ##
 
 class DealerStrategy(GameStrategy):
     def hit(self, hand):
-        for player in self.table.players:
-            for hand in player.hands:
-                if not hand.is_bust():
-                    return True
+        for h in self.player.table.player.hands:
+            if not h.is_bust() and not hand.is_bust() and hand.score() < h.score():
+                return True
         return False
 
 class BettingStrategy:
+    def __init__(self, player):
+        self.player = player
     def bet( self ):
         raise NotImplementedError( "No bet method" )
-    def record_win( self ):
-        pass
-    def record_loss( self ):
-        pass
 
 class Flat_Bet(BettingStrategy):
     def bet(self):
         return 1
 
 class Table:
-#    def __init__(self, num_decks=1):
-#        self.deck = Deck(num_decks)
-#        self.dealer = Player( self, bet_strategy, game_strategy )
-    # Table has one Dealer
-    # 1 or many Players
-    # 1 Deck
     def __init__( self, num_decks=1 ):
         self.num_decks = num_decks
         self.deck = Deck(num_decks)
-        self.players = []
-        self.pot = 0
-    def place_bet( self, amount ):
-        self.pot = self.pot + (amount*2) # Dealer just matches bet
     def get_hand(self):
         try:
             h = Hand(self.deck.pop(), self.deck.pop())
-#            print( "Deal: %s" % (h,))
             return h
         except IndexError:
             self.deck = Deck(self.num_decks)
@@ -167,75 +197,42 @@ class Table:
             self.deck = Deck(self.num_decks)
             return self.get_card()   
     def add_player(self, player):
-        self.players.append( player )
+        self.player = player
     def add_dealer(self, dealer):
         self.dealer = dealer
+    def get_dealer_visible_card(self):
+        return copy.deepcopy( self.dealer.hands[0].cards[0] )
     def play(self):
         self.dealer.hands.append( self.get_hand() )
 
-        for player in self.players:
-            print( "Player Pool: %s" % (player.pool) )
-            player.play()
+        print("\tDealer Card: %s" % (self.get_dealer_visible_card()))
+        self.player.play()
 
-        for player in self.players:
-#            print("%s" % (list(map( lambda x: x.is_bust(), player.hands),)))
-            if False in map( lambda x: x.is_bust(), player.hands):
-                print("\tDealer Play -- ")
-                self.dealer.play()
-                break
+        if False in map( lambda x: x.is_bust(), self.player.hands):
+            print("\tDealer Play")
+            self.dealer.play()
 
-        for player in self.players:
-            for hand in player.hands:
-                if hand.score() > self.dealer.hands[0].score():
-                    print("\tPlayer won this trick.")
-                    player.win = player.win + 1
-                    player.add_pool(self.pot)
-                elif hand.score() == self.dealer.hands[0].score():
-                    print("\tTie! No Scores")
-                    pass
-                else:
-                    player.loss = player.loss + 1
+        for hand in self.player.hands:
+            if hand.score() > self.dealer.hands[0].score():
+                print("\tPlayer won this trick.")
+                self.player.win = self.player.win + 1
+                self.player.add_pool(hand.pot)
+            elif hand.score() == self.dealer.hands[0].score():
+                print("\tTie! No Scores")
+                self.player.add_pool(hand.pot / 2)
+                pass
+            else:
+                self.player.loss = self.player.loss + 1
 
-        for player in self.players:
-            print("\tPlayer Score: %s, Hand: %s" % (player.hands[0].score(), ', '.join(map(str, player.hands[0].cards))))
-            #print("\tPlayer Score: %s" % (player.hands[0].score(),))
+        print("\tPlayer Score: %s, Player Pool: %s, Player: %s" % (', '.join(map(lambda x: str(x.score()),  self.player.hands)), self.player.pool, self.player ))
         if self.dealer.hands:
-            print("\tDealer Score: %s, Hand: %s" % (self.dealer.hands[0].score(), ', '.join(map(str, self.dealer.hands[0].cards))))
-            #print("\tDealer Score: %s" % (self.dealer.hands[0].score(),))
+            print("\tDealer Score: %s, Dealer: %s" % (', '.join(map(lambda x: str(x.score()), self.dealer.hands)), self.dealer ))
 
-        for player in self.players:
-            player.end_trick()
+        self.player.end_trick()
         self.dealer.end_trick()
         self.pot = 0
                     
-            
     
 
 Club, Diamond, Spade, Heart = Suit('Club', '\u2667'), Suit('Diamond', '\u25C6'), Suit('Spade', '\u2664'), Suit('Heart', '\u2665')
-
-#deck = [init_card(rank, suit) for rank in range(1,14) for suit in (Club, Diamond, Spade, Heart)]
-#
-#random.shuffle(deck)
-#
-#for x in deck:
-#    print(x)
-#print(deck)
-#
-#print( Club, Diamond, Spade, Heart )
-#
-#print(', '.join(map(str,deck)))
-#
-#h1 = Hand(deck.pop(), deck.pop())
-#h2 = Hand(deck.pop(), deck.pop())
-#
-#print( ', '.join(map(str, h1.cards)))
-#print( ', '.join(map(str, h2.cards)))
-
-
-
-
-
-
-
-
 

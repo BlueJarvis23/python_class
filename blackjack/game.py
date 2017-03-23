@@ -5,7 +5,8 @@ from cards import *
 def run_game( game_strategy=GameStrategy, betting_strategy=Flat_Bet ):
     table = Table(6)
     p = Player( table, betting_strategy, game_strategy )
-    d = Player( table, Flat_Bet, DealerStrategy )
+    d = Player( table, Flat_Bet, GameStrategy )
+    #d = Player( table, Flat_Bet, DealerStrategy )
     table.add_player(p)
     table.add_dealer(d)
 

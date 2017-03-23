@@ -128,7 +128,7 @@ class Player:
                 print("\t\tSplit")
 # Hit
         for hand in self.hands:
-            while self.game_strategy.hit(hand):
+            while self.game_strategy.HIT(hand):
                 hand.add_card( self.table.get_card() )
 
     def end_trick(self):
@@ -151,6 +151,10 @@ class GameStrategy:
         if hand.splitable():
             return self.split( hand )
         return False
+    def HIT( self, hand):
+        if not hand.is_bust():
+            return self.hit( hand )
+        return False
 
 ## Only Over Ride These ##
     def double_down( self, hand ):
@@ -158,7 +162,7 @@ class GameStrategy:
     def split( self, hand ):
         return False 
     def hit( self, hand ):
-        return sum(c.hard for c in hand.cards) <= 17
+        return sum(c.hard for c in hand.cards) < 17
 ## Only Over Ride These ##
 
 class DealerStrategy(GameStrategy):
